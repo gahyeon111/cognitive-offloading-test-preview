@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ground: #f0f1f3;
+  --color-surface: #ffffff;
+  --color-ink: #14161a;
+  --color-muted: #7a8090;
+  --color-mine: #2f44a8;
+  --color-ceded: #c9ccd4;
+  --color-line: #dddfe4;
+
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-report: "Gowun Batang", "Pretendard Variable", serif;
+
+  --text-display: 32px;
+  --text-title: 22px;
+  --text-lead: 17px;
+  --text-body: 15px;
+  --text-note: 13px;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  /* 한국어는 어절 단위로 끊는다 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  overflow-x: hidden;
+}
+
+button {
+  font-family: inherit;
+}
+
+textarea {
+  font-family: inherit;
+  font-size: var(--text-body);
+  line-height: 1.7;
+}
+
+/* 계측기 컨셉: 숫자는 등폭으로 흔들리지 않게 */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
