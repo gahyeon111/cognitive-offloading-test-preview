@@ -45,7 +45,7 @@ export default function SurveyStep({ page, answers, onAnswer }: Props) {
 
               <div className="flex gap-2.5">
                 <span className="tabular pt-px text-[13px] text-muted">
-                  {String(q.id).padStart(2, "0")}
+                  {q.code.slice(1)}
                 </span>
                 <p className="flex-1 text-[15px] leading-[1.6]">{q.text}</p>
               </div>

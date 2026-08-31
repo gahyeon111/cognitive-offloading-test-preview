@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Gauge from "@/components/Gauge";
+import { LANDING } from "@/content/copy";
 
 export default function LandingPage() {
   return (
@@ -7,7 +8,7 @@ export default function LandingPage() {
       <div className="mx-auto w-full max-w-[440px] flex-1 px-5">
         <div className="flex items-baseline justify-between border-b border-line pt-12 pb-3">
           <span className="text-[13px] text-muted">인지 위탁 검사</span>
-          <span className="tabular text-[13px] text-muted">v1.0</span>
+          <span className="tabular text-[13px] text-muted">v2.0</span>
         </div>
 
         <h1 className="font-report mt-10 text-[32px] leading-[1.4] tracking-[-0.01em]">
@@ -42,22 +43,16 @@ export default function LandingPage() {
         </section>
 
         <ul className="mt-8 divide-y divide-line border-y border-line text-[15px]">
-          <li className="flex justify-between py-3.5">
-            <span className="text-muted">1단계</span>
-            <span>자기보고 설문 20문항</span>
-          </li>
-          <li className="flex justify-between py-3.5">
-            <span className="text-muted">2단계</span>
-            <span>AI 없이 글쓰기 · 180초</span>
-          </li>
-          <li className="flex justify-between py-3.5">
-            <span className="text-muted">3단계</span>
-            <span>지문 읽고 요약 · 130초</span>
-          </li>
+          {LANDING.steps.map(([step, label]) => (
+            <li key={step} className="flex justify-between py-3.5">
+              <span className="text-muted">{step}</span>
+              <span>{label}</span>
+            </li>
+          ))}
         </ul>
 
         <p className="mt-6 pb-8 text-[13px] text-muted">
-          설문 20문항 + 실측 과제 2개 · 약 8분
+          {LANDING.meta}
         </p>
       </div>
 

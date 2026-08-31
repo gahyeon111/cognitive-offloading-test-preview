@@ -1,9 +1,16 @@
 import type { Report, ReportSource } from "./report";
-import type { Scores, TaskAMetrics, TaskBMetrics, TypeKey } from "./scoring";
+import type {
+  AxisGap,
+  Scores,
+  TaskAMetrics,
+  TaskBMetrics,
+  TaskCMetrics,
+  TypeKey,
+} from "./scoring";
 
 export const STORAGE_KEY = "cot_result_v1";
-/** 리포트 shape이 바뀌면 올린다. 이전 버전 결과는 무효 처리된다. */
-const SCHEMA_VERSION = 3;
+/** 저장 shape이 바뀌면 올린다. 이전 버전 결과는 무효 처리된다. */
+const SCHEMA_VERSION = 4;
 
 export type StoredResult = {
   v: typeof SCHEMA_VERSION;
@@ -12,8 +19,16 @@ export type StoredResult = {
   scores: Scores;
   taskA: TaskAMetrics;
   taskB: TaskBMetrics;
+  /** 과제 C를 건너뛰면 null */
+  taskC: TaskCMetrics | null;
+  choseHelp: boolean;
+  gaps: AxisGap[];
   type: TypeKey;
-  /** 결제(unlock) 전에는 없다. §0 비용 누수 차단 */
+  /** 24문항 중 15개 이상 동일값 */
+  straightline: boolean;
+  /** 실측이 빠져 추정치로 낸 결과 */
+  estimated: boolean;
+  /** 결제(unlock) 전에는 없다 */
   report?: Report;
   source?: ReportSource;
 };
@@ -35,7 +50,7 @@ export function loadResult(): StoredResult | null {
       !parsed ||
       parsed.v !== SCHEMA_VERSION ||
       !parsed.scores ||
-      !parsed.taskA
+      !parsed.gaps
     ) {
       return null;
     }

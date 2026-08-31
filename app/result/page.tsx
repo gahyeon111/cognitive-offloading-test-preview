@@ -4,8 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Gauge from "@/components/Gauge";
 import Toast from "@/components/Toast";
+import GapChart from "@/components/viz/GapChart";
+import IoedDrop from "@/components/viz/IoedDrop";
+import ResultActions from "@/components/ResultActions";
+import { DISCLAIMER, METHODOLOGY, PAYWALL, REFERENCES } from "@/content/copy";
 import { AXIS_LABEL, type Axis } from "@/lib/questions";
 import { buildHeadline } from "@/lib/headline";
+import { rankLabel } from "@/lib/norms";
 import { requestReport } from "@/lib/reportClient";
 import {
   clearResult,
@@ -13,9 +18,9 @@ import {
   saveResult,
   type StoredResult,
 } from "@/lib/storage";
-import { TYPES, bottomPercent, topPercent } from "@/lib/scoring";
+import { TYPES } from "@/lib/scoring";
 
-const AXES: Axis[] = ["OFF", "VER", "GEN", "ANX"];
+const AXES: Axis[] = ["OFF", "CAL", "GEN", "ACC", "ANX"];
 
 export default function ResultPage() {
   const router = useRouter();
@@ -23,25 +28,8 @@ export default function ResultPage() {
   const [ready, setReady] = useState(false);
   const [modal, setModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  /** 리포트 생성은 결제(unlock) 시점에만 일어난다 — §0 비용 누수 차단 */
+  /** 리포트 생성은 결제(unlock) 시점에만 일어난다 */
   const [loadingReport, setLoadingReport] = useState(false);
-
-  const unlock = useCallback(async () => {
-    setModal(false);
-    const stored = loadResult();
-    if (!stored || stored.report) return; // 이미 만들어 뒀으면 재호출하지 않는다
-    setLoadingReport(true);
-    const { report, source } = await requestReport(
-      stored.scores,
-      stored.type,
-      stored.taskA,
-      stored.taskB,
-    );
-    const next = { ...stored, report, source };
-    saveResult(next);
-    setData(next);
-    setLoadingReport(false);
-  }, []);
 
   useEffect(() => {
     const stored = loadResult();
@@ -53,12 +41,29 @@ export default function ResultPage() {
     setReady(true);
   }, [router]);
 
+  const unlock = useCallback(async () => {
+    setModal(false);
+    const stored = loadResult();
+    if (!stored || stored.report) return; // 이미 만들어 뒀으면 재호출하지 않는다
+    setLoadingReport(true);
+    const { report, source } = await requestReport(
+      stored.scores,
+      stored.type,
+      stored.taskA,
+      stored.taskB,
+      stored.taskC,
+    );
+    const next = { ...stored, report, source };
+    saveResult(next);
+    setData(next);
+    setLoadingReport(false);
+  }, []);
+
   if (!ready || !data) return null;
 
-  const { scores, taskA, type, report } = data;
+  const { scores, taskC, gaps, type, report, straightline, estimated } = data;
   const t = TYPES[type];
-  const uniqueRatio = Math.round(taskA.uniqueTokenRatio * 100);
-  const headline = buildHeadline({ scores, type });
+  const headline = buildHeadline({ scores, type, taskC, gaps });
   const unlocked = !!report;
 
   return (
@@ -67,27 +72,33 @@ export default function ResultPage() {
         <div className="flex items-baseline justify-between border-b border-line pt-12 pb-3 text-[13px] text-muted">
           <span>인지 위탁 검사 · 결과</span>
           <span className="tabular">
-            {data.source ? (data.source === "llm" ? "분석" : "템플릿") : "계측"}{" "}
-            · {new Date(data.createdAt).toLocaleDateString("ko-KR")}
+            {data.source ? (data.source === "llm" ? "분석" : "원고") : "계측"} ·{" "}
+            {new Date(data.createdAt).toLocaleDateString("ko-KR")}
           </span>
         </div>
 
+        {(straightline || estimated) && (
+          <div className="mt-4 border border-line bg-surface px-4 py-3 text-[13px] leading-[1.7] text-muted">
+            {straightline && <p>응답이 한 값에 몰려 있어 신뢰도가 낮습니다.</p>}
+            {estimated && <p>실측 과제가 일부 빠져 추정치가 포함됐습니다.</p>}
+          </div>
+        )}
+
         {/* 1. 유형 */}
         <section className="pt-10">
-          <p className="text-[13px] text-muted">당신의 유형</p>
-          <h1 className="font-report mt-2 text-[32px] leading-[1.35]">
-            {t.name}
-          </h1>
+          <p className="text-[13px] text-muted">
+            당신의 유형 · {t.code}
+          </p>
+          <h1 className="font-report mt-2 text-[32px] leading-[1.35]">{t.name}</h1>
           <p className="mt-2 text-[17px] leading-[1.7]">{t.line}</p>
         </section>
 
-        {/* 2. 4개 지표 */}
+        {/* 2. 5축 게이지 */}
         <section className="mt-10 border border-line bg-surface p-5">
           <p className="mb-5 text-[13px] text-muted">지표</p>
           <div className="space-y-5">
             {AXES.map((axis, i) => {
               const v = scores[axis];
-              const p = bottomPercent(v);
               return (
                 <div key={axis}>
                   <div className="mb-2 flex items-baseline justify-between">
@@ -98,7 +109,7 @@ export default function ResultPage() {
                   </div>
                   <Gauge value={v} animate delay={i * 90} />
                   <p className="tabular mt-1.5 text-[13px] text-muted">
-                    {p >= 50 ? `상위 ${topPercent(v)}%` : `하위 ${p}%`}
+                    {rankLabel(v)}
                   </p>
                 </div>
               );
@@ -109,17 +120,27 @@ export default function ResultPage() {
         {/* 3. 결정적 한 줄 */}
         <section className="mt-8 border-2 border-ink bg-surface p-5">
           <p className="text-[13px] text-muted">결정적 한 줄</p>
-          <p className="font-report mt-3 text-[22px] leading-[1.6] whitespace-pre-line">
+          <p className="font-report mt-3 whitespace-pre-line text-[22px] leading-[1.6]">
             {headline}
           </p>
         </section>
 
-        {/* 4. 과제 A 요약 */}
-        <p className="tabular mt-6 text-[15px] text-muted">
-          3분 동안 {taskA.charCount}자, 서로 다른 단어 {uniqueRatio}%
-        </p>
+        {/* 4. IOED 카드 — 무료 구간의 주인공 */}
+        {taskC && (
+          <div className="mt-8">
+            <IoedDrop taskC={taskC} />
+          </div>
+        )}
 
-        {/* 5. 페이월 / 유료 구간 */}
+        {/* 5. 방법론 */}
+        <section className="mt-8 border border-line bg-surface p-5">
+          <h2 className="text-[17px] font-semibold">{METHODOLOGY.title}</h2>
+          <p className="mt-3 whitespace-pre-line text-[15px] leading-[1.8] text-muted">
+            {METHODOLOGY.body}
+          </p>
+        </section>
+
+        {/* 6. 페이월 / 유료 구간 */}
         {loadingReport ? (
           <section
             className="mt-8 border border-line bg-surface p-5"
@@ -143,12 +164,7 @@ export default function ResultPage() {
           <section className="mt-8 border border-line bg-surface p-5">
             <p className="text-[13px] text-muted">잠긴 항목</p>
             <ul className="mt-3 space-y-2 text-[15px]">
-              {[
-                "축별 상세 해석 4편",
-                "당신이 쓴 글의 실제 분석 (어휘·문장 구조)",
-                "같은 유형이 6개월 뒤 겪는 변화",
-                "4주 회복 루틴",
-              ].map((item) => (
+              {PAYWALL.locked.map((item) => (
                 <li key={item} className="flex gap-2">
                   <span className="text-ceded">·</span>
                   <span className="text-muted">{item}</span>
@@ -157,15 +173,24 @@ export default function ResultPage() {
             </ul>
             <button
               type="button"
-              disabled={loadingReport}
               onClick={() => setModal(true)}
-              className="mt-5 h-[52px] w-full bg-mine text-[15px] font-semibold text-white disabled:bg-ceded"
+              className="mt-5 h-[52px] w-full bg-mine text-[15px] font-semibold text-white"
             >
-              {loadingReport ? "리포트를 만드는 중" : "전체 리포트 보기 · 3,900원"}
+              {PAYWALL.cta}
             </button>
+            <p className="mt-3 text-[13px] text-muted">{PAYWALL.refund}</p>
           </section>
         ) : (
           <>
+            {/* 02 괴리 차트 */}
+            <section className="mt-10">
+              <h2 className="font-report text-[22px]">말한 나와 잰 나</h2>
+              <div className="mt-4">
+                <GapChart gaps={gaps} />
+              </div>
+            </section>
+
+            {/* 05 축별 상세 5편 */}
             <section className="mt-10">
               <h2 className="font-report text-[22px]">축별 상세 해석</h2>
               <div className="mt-4 space-y-3">
@@ -181,6 +206,7 @@ export default function ResultPage() {
               </div>
             </section>
 
+            {/* 07 당신이 쓴 글 */}
             <section className="mt-10">
               <h2 className="font-report text-[22px]">당신이 쓴 글의 실제 분석</h2>
               <article className="mt-4 border border-line bg-surface p-5">
@@ -191,15 +217,15 @@ export default function ResultPage() {
                   {report.writingAnalysis.body}
                 </p>
                 <p className="tabular mt-4 border-t border-line pt-3 text-[13px] text-muted">
-                  {taskA.charCount}자 · 서로 다른 단어 {uniqueRatio}%
+                  {data.taskA.charCount}자 · 100자당 인과 표현{" "}
+                  {data.taskA.causalDensity.toFixed(1)}회
                 </p>
               </article>
             </section>
 
+            {/* 10 6개월 궤적 */}
             <section className="mt-10">
-              <h2 className="font-report text-[22px]">
-                같은 유형이 6개월 뒤 겪는 변화
-              </h2>
+              <h2 className="font-report text-[22px]">6개월 뒤</h2>
               <article className="mt-4 border border-line bg-surface p-5">
                 <h3 className="text-[17px] font-semibold">
                   {report.sixMonths.title}
@@ -207,9 +233,13 @@ export default function ResultPage() {
                 <p className="mt-3 text-[15px] leading-[1.8]">
                   {report.sixMonths.body}
                 </p>
+                <p className="mt-4 border-t border-line pt-3 text-[13px] text-muted">
+                  이 서술은 예측이 아니라 현 패턴을 유지했을 때의 시나리오입니다.
+                </p>
               </article>
             </section>
 
+            {/* 11 4주 루틴 */}
             <section className="mt-10">
               <h2 className="font-report text-[22px]">4주 회복 루틴</h2>
               <ol className="mt-4 divide-y divide-line border-y border-line">
@@ -230,11 +260,27 @@ export default function ResultPage() {
                 ))}
               </ol>
             </section>
+
+            {/* 12 참고문헌 */}
+            <section className="mt-10">
+              <h2 className="font-report text-[22px]">방법론과 참고문헌</h2>
+              <ul className="mt-4 space-y-2 text-[13px] leading-[1.7] text-muted">
+                {REFERENCES.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </section>
           </>
         )}
 
         {/* 하단 */}
         <div className="mt-10 space-y-3">
+          <ResultActions
+            scores={scores}
+            type={type}
+            headline={headline}
+            onToast={setToast}
+          />
           <button
             type="button"
             onClick={() => {
@@ -245,18 +291,9 @@ export default function ResultPage() {
           >
             다시 검사하기
           </button>
-          <button
-            type="button"
-            onClick={() => setToast("준비 중입니다")}
-            className="h-[52px] w-full border border-line bg-surface text-[15px]"
-          >
-            결과 이미지 저장
-          </button>
         </div>
 
-        <p className="mt-8 text-[13px] leading-[1.7] text-muted">
-          이 검사는 의학적 진단이 아니며 재미와 자기 점검을 위한 도구입니다.
-        </p>
+        <p className="mt-8 text-[13px] leading-[1.7] text-muted">{DISCLAIMER}</p>
       </div>
 
       {modal && (

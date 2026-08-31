@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Toast from "@/components/Toast";
-import { SOURCE_TEXT } from "@/lib/scoring";
+import { SOURCE_B, TASK_B } from "@/content/tasks";
 
-const READ_LIMIT = 40;
-const WRITE_LIMIT = 90;
-const MIN_CHARS = 20;
+const READ_LIMIT: number = TASK_B.readSeconds;
+const WRITE_LIMIT: number = TASK_B.writeSeconds;
+const MIN_CHARS: number = TASK_B.minChars;
 
 export default function TaskB({
   onSubmit,
@@ -14,7 +14,7 @@ export default function TaskB({
   onSubmit: (text: string) => void;
 }) {
   const [phase, setPhase] = useState<"read" | "write">("read");
-  const [left, setLeft] = useState(READ_LIMIT);
+  const [left, setLeft] = useState<number>(READ_LIMIT);
   const [text, setText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const submitted = useRef(false);
@@ -67,7 +67,7 @@ export default function TaskB({
         </p>
 
         <article className="mt-4 border border-line bg-surface p-5 text-[17px] leading-[1.8]">
-          {SOURCE_TEXT}
+          {SOURCE_B}
         </article>
 
         <div className="flex-1" />
@@ -98,9 +98,8 @@ export default function TaskB({
         </span>
       </div>
 
-      <p className="mt-6 text-[17px] leading-[1.7]">
-        방금 읽은 내용을 <b className="font-semibold">두 문장으로</b>, 원문 표현을
-        쓰지 말고 요약하세요.
+      <p className="mt-6 whitespace-pre-line text-[17px] leading-[1.7]">
+        {TASK_B.prompt}
       </p>
 
       <textarea

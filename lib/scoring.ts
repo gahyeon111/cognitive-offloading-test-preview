@@ -1,125 +1,217 @@
-import { QUESTIONS, type Axis } from "./questions";
+import { QUESTIONS, type Axis, type SurveyAxis } from "./questions";
+import {
+  avgSentenceLength,
+  causalDensity,
+  clamp,
+  mattr,
+  ngramOverlap,
+  norm,
+  tokenize,
+  trapScore,
+  type TypingMetrics,
+} from "./metrics";
+import { REFERENCE, SOURCE_B, type TaskCItemKey } from "@/content/tasks";
 
-export type Scores = { OFF: number; VER: number; GEN: number; ANX: number };
+export type Scores = {
+  OFF: number;
+  CAL: number;
+  GEN: number;
+  ACC: number;
+  ANX: number;
+};
 
 export type TaskAMetrics = {
   text: string;
   charCount: number;
-  uniqueTokenRatio: number;
+  causalDensity: number;
+  mattr: number;
+  avgSentLen: number;
+  typing?: TypingMetrics;
 };
 
 export type TaskBMetrics = {
   text: string;
   overlap: number;
+  trapScore: number;
 };
 
-export type TypeKey = "pilot" | "passenger" | "mechanic" | "climber";
+export type TaskCMetrics = {
+  item: TaskCItemKey;
+  ratingPre: number;
+  ratingPost: number;
+  choseHelp: boolean;
+  text: string;
+  /** 참조답변 표현 채택률. '도움 받기'를 고른 경우만 의미가 있다 */
+  adoption: number;
+};
 
-export const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
+export { clamp };
 
-/** 과제 B 지문. 40초 노출 후 숨긴다. */
-export const SOURCE_TEXT =
-  "어떤 도구든 처음에는 우리가 하던 일을 대신해 준다. 그러나 그 도구를 오래 쓰다 보면 대신해 주던 일이 애초에 우리가 할 줄 알던 일이었는지 흐려진다. 계산기를 오래 쓴 사람은 암산이 느려지지만 계산 자체를 못 하게 되지는 않는다. 문제는 판단을 대신 맡길 때다. 판단은 반복해서 쓰지 않으면 근거를 세우는 감각부터 사라지고, 사라진 뒤에는 무엇이 사라졌는지조차 알기 어렵다.";
+/* ── 측정 ──────────────────────────────────────────────── */
 
-/** 과제 A 측정 */
-export function measureTaskA(text: string): TaskAMetrics {
-  const charCount = text.trim().length;
-  const tokens = text
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t.length >= 2);
-  const uniqueTokenRatio = tokens.length
-    ? new Set(tokens).size / tokens.length
-    : 0;
-  return { text, charCount, uniqueTokenRatio };
+export function measureTaskA(text: string, typing?: TypingMetrics): TaskAMetrics {
+  return {
+    text,
+    charCount: text.trim().length,
+    causalDensity: causalDensity(text),
+    mattr: mattr(tokenize(text)),
+    avgSentLen: avgSentenceLength(text),
+    typing,
+  };
 }
 
-function bigrams(s: string) {
-  const c = s.replace(/\s/g, "");
-  return new Set(
-    Array.from({ length: Math.max(0, c.length - 1) }, (_, i) => c.slice(i, i + 2)),
-  );
-}
-
-/** 과제 B 측정 — 원문 대비 문자 2-gram 겹침 비율 */
 export function measureTaskB(text: string): TaskBMetrics {
-  const a = bigrams(SOURCE_TEXT);
-  const b = bigrams(text);
-  const overlap = b.size
-    ? [...b].filter((x) => a.has(x)).length / b.size
-    : 0;
-  return { text, overlap };
+  return {
+    text,
+    overlap: ngramOverlap(SOURCE_B, text, 2),
+    trapScore: trapScore(text),
+  };
 }
 
-/** 축별 자기보고: 5문항 합(5~25) → 0~100 */
-export const selfScore = (sum: number) => ((sum - 5) / 20) * 100;
+export function measureTaskC(input: {
+  item: TaskCItemKey;
+  ratingPre: number;
+  ratingPost: number;
+  choseHelp: boolean;
+  text: string;
+}): TaskCMetrics {
+  return {
+    ...input,
+    adoption: input.choseHelp
+      ? ngramOverlap(REFERENCE[input.item], input.text, 3)
+      : 0,
+  };
+}
 
-export function axisSum(answers: Record<number, number>, axis: Axis) {
+/* ── 채점 ──────────────────────────────────────────────── */
+
+/** n문항 합(n~5n) → 0~100 */
+export const selfScore = (sum: number, n: number) => ((sum - n) / (4 * n)) * 100;
+
+/** 역채점을 적용한 축 합계 */
+export function axisSum(answers: Record<number, number>, axis: SurveyAxis) {
   return QUESTIONS.filter((q) => q.axis === axis).reduce((acc, q) => {
     const raw = answers[q.id] ?? 3;
     return acc + (q.reverse ? 6 - raw : raw);
   }, 0);
 }
 
+/** 역채점 전 원값 평균. CAL 상대신뢰차에만 쓴다 */
+function trustMean(
+  answers: Record<number, number>,
+  target: "ai" | "self",
+): number {
+  const items = QUESTIONS.filter((q) => q.trustTarget === target);
+  if (!items.length) return 3;
+  return items.reduce((a, q) => a + (answers[q.id] ?? 3), 0) / items.length;
+}
+
+/** 과제 A 실측 → 0~100 */
+export function genTaskScore(a: TaskAMetrics): number {
+  return (
+    100 *
+    (0.45 * norm(a.causalDensity, 0, 4) +
+      0.35 * norm(a.mattr, 0.55, 0.9) +
+      0.2 * norm(a.avgSentLen, 15, 45))
+  );
+}
+
+/** 상대신뢰차 — Lee et al. 2025의 이중 신뢰를 조작화 */
+export function calSelfScore(answers: Record<number, number>): number {
+  const trustAI = trustMean(answers, "ai");
+  const trustSelf = trustMean(answers, "self");
+  return clamp(((trustSelf - trustAI + 4) / 8) * 100, 0, 100);
+}
+
+const overlapScore = (overlap: number) => clamp((overlap / 0.5) * 100, 0, 100);
+
 export function computeScores(
   answers: Record<number, number>,
   taskA: TaskAMetrics,
   taskB: TaskBMetrics,
+  taskC: TaskCMetrics | null,
 ): Scores {
-  const lengthPart = Math.min(50, (taskA.charCount / 400) * 50);
-  const diversityPart = clamp(
-    ((taskA.uniqueTokenRatio - 0.45) / 0.35) * 50,
-    0,
-    50,
-  );
-  const genTask = lengthPart + diversityPart;
-
   const OFF =
-    0.8 * selfScore(axisSum(answers, "OFF")) +
-    0.2 * clamp((taskB.overlap / 0.5) * 100, 0, 100);
-  const VER = selfScore(axisSum(answers, "VER"));
-  const GEN = 0.5 * selfScore(axisSum(answers, "GEN")) + 0.5 * genTask;
-  const ANX = selfScore(axisSum(answers, "ANX"));
+    0.6 * selfScore(axisSum(answers, "OFF"), 6) +
+    0.25 * (taskC?.choseHelp ? 100 : 0) +
+    0.15 * overlapScore(taskB.overlap);
 
-  return { OFF, VER, GEN, ANX };
+  const CAL = 0.5 * calSelfScore(answers) + 0.5 * (taskB.trapScore * 100);
+
+  const GEN = 0.5 * selfScore(axisSum(answers, "GEN"), 6) + 0.5 * genTaskScore(taskA);
+
+  // 과제 C를 건너뛰면 중립값. 결과에 '실측 미포함' 배지를 단다.
+  const ACC = taskC
+    ? 100 - norm(taskC.ratingPre - taskC.ratingPost, 0, 4) * 100
+    : 50;
+
+  const ANX = selfScore(axisSum(answers, "ANX"), 6);
+
+  return { OFF, CAL, GEN, ACC, ANX };
 }
 
-/** 목업 규준: 평균 55, 표준편차 15의 정규분포 가정 */
-export function percentile(x: number) {
-  const z = (x - 55) / 15;
-  const p =
-    0.5 * (1 + Math.sign(z) * Math.sqrt(1 - Math.exp((-2 * z * z) / Math.PI)));
-  return Math.min(99, Math.max(1, Math.round(p * 100)));
+/* ── 말한 나 vs 잰 나 ──────────────────────────────────── */
+
+export type AxisGap = { axis: Axis; self: number; measured: number };
+
+/**
+ * 괴리 차트(모듈 1)의 데이터.
+ * 자기보고와 실측이 모두 있는 세 축만 그린다 — ACC는 실측뿐이고 ANX는 자기보고뿐이다.
+ */
+export function computeGaps(
+  answers: Record<number, number>,
+  taskA: TaskAMetrics,
+  taskB: TaskBMetrics,
+  taskC: TaskCMetrics | null,
+): AxisGap[] {
+  const offMeasured =
+    (0.25 * (taskC?.choseHelp ? 100 : 0) + 0.15 * overlapScore(taskB.overlap)) /
+    0.4;
+
+  return [
+    { axis: "OFF", self: selfScore(axisSum(answers, "OFF"), 6), measured: offMeasured },
+    { axis: "CAL", self: calSelfScore(answers), measured: taskB.trapScore * 100 },
+    { axis: "GEN", self: selfScore(axisSum(answers, "GEN"), 6), measured: genTaskScore(taskA) },
+  ];
 }
 
-/** 상위 N% */
-export const topPercent = (x: number) => 100 - percentile(x);
-/** 하위 N% */
-export const bottomPercent = (x: number) => percentile(x);
+/* ── 8유형 ─────────────────────────────────────────────── */
 
-export const TYPES: Record<
-  TypeKey,
-  { name: string; line: string }
-> = {
-  pilot: { name: "조종사형", line: "많이 맡기지만 계기판에서 눈을 떼지 않는다" },
-  passenger: { name: "승객형", line: "목적지는 정했지만 경로는 보지 않는다" },
-  mechanic: { name: "정비사형", line: "안 믿어서 직접 뜯어본다. 대신 느리다" },
-  climber: {
-    name: "등반가형",
-    line: "맨손으로 오른다. 남들이 케이블카를 타는 동안",
-  },
+export type TypeKey =
+  | "captain"
+  | "firstOfficer"
+  | "glider"
+  | "passenger"
+  | "mechanic"
+  | "controller"
+  | "climber"
+  | "drifter";
+
+/** 축 중앙값. 실규준 확보 후 실제 중앙값으로 바꾼다 */
+export const CUT = 55;
+
+export const TYPES: Record<TypeKey, { code: string; name: string; line: string }> = {
+  captain: { code: "HHH", name: "기장", line: "다 맡기지만 계기판에서 눈을 떼지 않는다" },
+  firstOfficer: { code: "HHL", name: "부조종사", line: "확인은 철저한데, 처음 방향을 자기가 정하지 않는다" },
+  glider: { code: "HLH", name: "활공사", line: "엔진을 끄고도 잘 난다. 계기는 안 본다" },
+  passenger: { code: "HLL", name: "승객", line: "목적지는 정했다. 경로는 보지 않는다" },
+  mechanic: { code: "LHH", name: "정비사", line: "안 믿어서 직접 뜯는다. 대신 느리다" },
+  controller: { code: "LHL", name: "관제사", line: "남의 항로는 정확히 본다. 자기 비행은 없다" },
+  climber: { code: "LLH", name: "등반가", line: "맨손으로 오른다. 옆으로 케이블카가 지나간다" },
+  drifter: { code: "LLL", name: "표류자", line: "아직 어느 쪽도 고르지 않았다" },
 };
 
+const BY_CODE: Record<string, TypeKey> = Object.fromEntries(
+  (Object.keys(TYPES) as TypeKey[]).map((k) => [TYPES[k].code, k]),
+);
+
+/** OFF × CAL × GEN 세 축만 쓴다. ACC와 ANX는 유형 내 개인차 지표다 */
 export function decideType(scores: Scores): TypeKey {
-  const highOff = scores.OFF >= 55;
-  const highVer = scores.VER >= 55;
-  if (highOff && highVer) return "pilot";
-  if (highOff && !highVer) return "passenger";
-  if (!highOff && highVer) return "mechanic";
-  return "climber";
+  const code =
+    (scores.OFF >= CUT ? "H" : "L") +
+    (scores.CAL >= CUT ? "H" : "L") +
+    (scores.GEN >= CUT ? "H" : "L");
+  return BY_CODE[code];
 }
 
-export type Band = "high" | "mid" | "low";
-export const band = (v: number): Band =>
-  v >= 66 ? "high" : v >= 40 ? "mid" : "low";
+export const typeCode = (type: TypeKey) => TYPES[type].code;
