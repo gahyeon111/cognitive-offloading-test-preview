@@ -3,7 +3,7 @@ import type { Scores, TaskAMetrics, TaskBMetrics, TypeKey } from "./scoring";
 
 export const STORAGE_KEY = "cot_result_v1";
 /** 리포트 shape이 바뀌면 올린다. 이전 버전 결과는 무효 처리된다. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export type StoredResult = {
   v: typeof SCHEMA_VERSION;
@@ -13,8 +13,9 @@ export type StoredResult = {
   taskA: TaskAMetrics;
   taskB: TaskBMetrics;
   type: TypeKey;
-  report: Report;
-  source: ReportSource;
+  /** 결제(unlock) 전에는 없다. §0 비용 누수 차단 */
+  report?: Report;
+  source?: ReportSource;
 };
 
 export function saveResult(result: StoredResult) {
@@ -34,7 +35,7 @@ export function loadResult(): StoredResult | null {
       !parsed ||
       parsed.v !== SCHEMA_VERSION ||
       !parsed.scores ||
-      !parsed.report?.writingAnalysis
+      !parsed.taskA
     ) {
       return null;
     }

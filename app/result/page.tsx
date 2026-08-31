@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Gauge from "@/components/Gauge";
 import Toast from "@/components/Toast";
 import { AXIS_LABEL, type Axis } from "@/lib/questions";
-import { clearResult, loadResult, type StoredResult } from "@/lib/storage";
+import { buildHeadline } from "@/lib/headline";
+import { requestReport } from "@/lib/reportClient";
+import {
+  clearResult,
+  loadResult,
+  saveResult,
+  type StoredResult,
+} from "@/lib/storage";
 import { TYPES, bottomPercent, topPercent } from "@/lib/scoring";
 
 const AXES: Axis[] = ["OFF", "VER", "GEN", "ANX"];
@@ -14,9 +21,27 @@ export default function ResultPage() {
   const router = useRouter();
   const [data, setData] = useState<StoredResult | null>(null);
   const [ready, setReady] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
   const [modal, setModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  /** 리포트 생성은 결제(unlock) 시점에만 일어난다 — §0 비용 누수 차단 */
+  const [loadingReport, setLoadingReport] = useState(false);
+
+  const unlock = useCallback(async () => {
+    setModal(false);
+    const stored = loadResult();
+    if (!stored || stored.report) return; // 이미 만들어 뒀으면 재호출하지 않는다
+    setLoadingReport(true);
+    const { report, source } = await requestReport(
+      stored.scores,
+      stored.type,
+      stored.taskA,
+      stored.taskB,
+    );
+    const next = { ...stored, report, source };
+    saveResult(next);
+    setData(next);
+    setLoadingReport(false);
+  }, []);
 
   useEffect(() => {
     const stored = loadResult();
@@ -33,6 +58,8 @@ export default function ResultPage() {
   const { scores, taskA, type, report } = data;
   const t = TYPES[type];
   const uniqueRatio = Math.round(taskA.uniqueTokenRatio * 100);
+  const headline = buildHeadline({ scores, type });
+  const unlocked = !!report;
 
   return (
     <main className="flex min-h-dvh flex-col pb-10">
@@ -40,8 +67,8 @@ export default function ResultPage() {
         <div className="flex items-baseline justify-between border-b border-line pt-12 pb-3 text-[13px] text-muted">
           <span>인지 위탁 검사 · 결과</span>
           <span className="tabular">
-            {data.source === "llm" ? "분석" : "템플릿"} ·{" "}
-            {new Date(data.createdAt).toLocaleDateString("ko-KR")}
+            {data.source ? (data.source === "llm" ? "분석" : "템플릿") : "계측"}{" "}
+            · {new Date(data.createdAt).toLocaleDateString("ko-KR")}
           </span>
         </div>
 
@@ -83,7 +110,7 @@ export default function ResultPage() {
         <section className="mt-8 border-2 border-ink bg-surface p-5">
           <p className="text-[13px] text-muted">결정적 한 줄</p>
           <p className="font-report mt-3 text-[22px] leading-[1.6] whitespace-pre-line">
-            {report.headline}
+            {headline}
           </p>
         </section>
 
@@ -93,7 +120,26 @@ export default function ResultPage() {
         </p>
 
         {/* 5. 페이월 / 유료 구간 */}
-        {!unlocked ? (
+        {loadingReport ? (
+          <section
+            className="mt-8 border border-line bg-surface p-5"
+            aria-busy="true"
+          >
+            <p className="text-[13px] text-muted">리포트를 만드는 중</p>
+            <div className="mt-4 space-y-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-[10px] w-1/3 bg-ceded" />
+                  <div className="h-[10px] w-full bg-ceded" />
+                  <div className="h-[10px] w-4/5 bg-ceded" />
+                </div>
+              ))}
+            </div>
+            <p className="mt-5 border-t border-line pt-4 text-[13px] leading-[1.7] text-muted">
+              당신이 쓴 글을 읽고 있습니다. 20초쯤 걸립니다.
+            </p>
+          </section>
+        ) : !unlocked ? (
           <section className="mt-8 border border-line bg-surface p-5">
             <p className="text-[13px] text-muted">잠긴 항목</p>
             <ul className="mt-3 space-y-2 text-[15px]">
@@ -111,10 +157,11 @@ export default function ResultPage() {
             </ul>
             <button
               type="button"
+              disabled={loadingReport}
               onClick={() => setModal(true)}
-              className="mt-5 h-[52px] w-full bg-mine text-[15px] font-semibold text-white"
+              className="mt-5 h-[52px] w-full bg-mine text-[15px] font-semibold text-white disabled:bg-ceded"
             >
-              전체 리포트 보기 · 3,900원
+              {loadingReport ? "리포트를 만드는 중" : "전체 리포트 보기 · 3,900원"}
             </button>
           </section>
         ) : (
@@ -235,10 +282,7 @@ export default function ResultPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setUnlocked(true);
-                setModal(false);
-              }}
+              onClick={unlock}
               className="mt-3 w-full text-[13px] text-muted underline"
             >
               개발용으로 열어보기

@@ -25,13 +25,8 @@ const BODY_HINT = "한국어 350자 내외의 한 문단. 마크다운·목록·
 export const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "sections", "writingAnalysis", "sixMonths", "routine"],
+  required: ["sections", "writingAnalysis", "sixMonths", "routine"],
   properties: {
-    headline: {
-      type: "string",
-      description:
-        "결정적 한 줄. 줄바꿈(\\n)으로 나뉜 2~3줄. 각 줄 40자 이내. 제시된 백분위 수치를 그대로 인용할 것.",
-    },
     sections: {
       type: "object",
       additionalProperties: false,
@@ -169,7 +164,6 @@ ${p.taskBText || "(비어 있음)"}
 
 /** 모델의 고정 키 객체를 UI가 쓰는 배열 형태로 되돌린다 */
 export function toReport(raw: {
-  headline: string;
   sections: Record<Axis, { title: string; body: string }>;
   writingAnalysis: { title: string; body: string };
   sixMonths: { title: string; body: string };
@@ -182,7 +176,6 @@ export function toReport(raw: {
   }));
 
   return {
-    headline: raw.headline,
     sections: AXES.map((a) => raw.sections[a]),
     writingAnalysis: raw.writingAnalysis,
     sixMonths: raw.sixMonths,

@@ -8,7 +8,6 @@ import TaskA from "@/components/TaskA";
 import TaskB from "@/components/TaskB";
 import Computing from "@/components/Computing";
 import { PAGE_COUNT, PAGE_SIZE, QUESTIONS } from "@/lib/questions";
-import { requestReport } from "@/lib/reportClient";
 import { saveResult } from "@/lib/storage";
 import {
   computeScores,
@@ -62,7 +61,9 @@ export default function TestPage() {
     window.scrollTo(0, 0);
   }, []);
 
-  // 계산 화면: 목업 리포트 생성과 최소 2.2초 대기를 함께 소진시킨다.
+  // 계산 화면 — 여기서는 LLM을 부르지 않는다.
+  // 리포트는 결제(unlock) 시점에 /result 가 생성한다 (§0 비용 누수 차단).
+  // 점수 계산은 즉시 끝나므로 2.2초는 연출로만 소진한다.
   useEffect(() => {
     if (step !== STEP_COMPUTING || startedRef.current) return;
     startedRef.current = true;
@@ -71,31 +72,18 @@ export default function TestPage() {
     const taskB = measureTaskB(taskBTextRef.current);
     const scores = computeScores(answers, taskA, taskB);
 
-    let cancelled = false;
-    (async () => {
-      const type = decideType(scores);
-      const [{ report, source }] = await Promise.all([
-        requestReport(scores, type, taskA, taskB),
-        new Promise((r) => setTimeout(r, 2200)),
-      ]);
-      if (cancelled) return;
-      saveResult({
-        v: 2,
-        createdAt: Date.now(),
-        answers,
-        scores,
-        taskA,
-        taskB,
-        type,
-        report,
-        source,
-      });
-      router.replace("/result");
-    })();
+    saveResult({
+      v: 3,
+      createdAt: Date.now(),
+      answers,
+      scores,
+      taskA,
+      taskB,
+      type: decideType(scores),
+    });
 
-    return () => {
-      cancelled = true;
-    };
+    const id = window.setTimeout(() => router.replace("/result"), 2200);
+    return () => window.clearTimeout(id);
   }, [step, answers, router]);
 
   return (

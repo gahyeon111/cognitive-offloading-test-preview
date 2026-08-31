@@ -2,9 +2,7 @@ import { AXIS_LABEL, type Axis } from "./questions";
 import type { Report, ReportSection, RoutineItem } from "./report";
 import {
   band,
-  bottomPercent,
   decideType,
-  topPercent,
   type Band,
   type Scores,
   type TaskAMetrics,
@@ -14,7 +12,7 @@ import {
 
 /* ------------------------------------------------------------------
  * TODO(real): POST /api/analyze — { scores, taskA, taskB }
- *   → { headline, sections[], routine[] }
+ *   → { sections[], writingAnalysis, sixMonths, routine[] }
  * 모델 응답을 아래와 동일한 shape으로 반환하면 UI 수정 없이 교체된다.
  * 아래 상수 테이블은 그때 전부 지워도 된다.
  * ------------------------------------------------------------------ */
@@ -48,26 +46,6 @@ const SECTION_BODY: Record<Axis, Record<Band, string>> = {
     low: "당신은 도구에 대해 별다른 불안을 느끼지 않습니다. 도구가 사라져도 크게 달라지지 않을 것이라 보고, 스스로 무능해졌다는 감각도 거의 없습니다. 대개는 실제로 덜 의존하고 있기 때문이지만, 한 가지 경우는 구분이 필요합니다. 잃은 것이 없어서 불안하지 않은 것과, 무엇을 잃었는지 몰라서 불안하지 않은 것은 겉으로 같아 보입니다. 다른 지표들과 함께 읽으십시오. 창발 잔존도가 함께 높다면 전자이고, 낮은데도 불안이 없다면 후자일 가능성이 있습니다. 후자라면 지금 필요한 것은 안심이 아니라 한 번의 실제 측정입니다.",
   },
 };
-
-function headlineFor(scores: Scores) {
-  const t = decideType(scores);
-  const offTop = topPercent(scores.OFF);
-  const offBottom = bottomPercent(scores.OFF);
-  const verTop = topPercent(scores.VER);
-  const verBottom = bottomPercent(scores.VER);
-
-  switch (t) {
-    case "pilot":
-      return `당신의 인지 위탁도는 상위 ${offTop}%입니다.\n검증 습관 또한 상위 ${verTop}%입니다.\n많이 맡기면서 끝까지 확인하는 사람은 드뭅니다.`;
-    case "passenger":
-      return `당신의 인지 위탁도는 상위 ${offTop}%입니다.\n다만 검증 습관은 하위 ${verBottom}%입니다.\n넘긴 만큼 되돌아본 기록이 남아 있지 않습니다.`;
-    case "mechanic":
-      return `당신의 인지 위탁도는 하위 ${offBottom}%입니다.\n대신 검증 습관은 상위 ${verTop}%입니다.\n적게 맡기고 그마저도 직접 뜯어보고 있습니다.`;
-    case "climber":
-    default:
-      return `당신의 인지 위탁도는 하위 ${offBottom}%입니다.\n검증 습관도 하위 ${verBottom}%입니다.\n맡기지 않았기에 아직 확인할 일도 없었습니다.`;
-  }
-}
 
 function routineFor(scores: Scores): RoutineItem[] {
   const weakest = (["OFF", "VER", "GEN", "ANX"] as Axis[]).reduce((a, b) => {
@@ -141,7 +119,6 @@ export function buildFallbackReport(
   );
 
   return {
-    headline: headlineFor(scores),
     sections,
     writingAnalysis: {
       title: "당신이 쓴 글",

@@ -3,9 +3,11 @@ import type { Scores, TaskAMetrics, TaskBMetrics, TypeKey } from "./scoring";
 export type ReportSection = { title: string; body: string };
 export type RoutineItem = { week: string; title: string; body: string };
 
+/**
+ * 유료 구간 리포트. 결제(unlock) 시점에만 생성한다.
+ * 결정적 한 줄은 여기 없다 — 무료 구간 소유이고 lib/headline.ts가 만든다.
+ */
 export type Report = {
-  /** 결정적 한 줄 (무료 구간 노출). 줄바꿈 포함 3줄 이내 */
-  headline: string;
   /** 축별 해석 4편. OFF / VER / GEN / ANX 순서 */
   sections: ReportSection[];
   /** 과제 A 원문을 실제로 읽고 쓴 분석 */

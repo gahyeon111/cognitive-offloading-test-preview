@@ -51,7 +51,6 @@ export async function requestReport(
 function isUsable(r: Report | undefined): r is Report {
   return (
     !!r &&
-    typeof r.headline === "string" &&
     Array.isArray(r.sections) &&
     r.sections.length === 4 &&
     Array.isArray(r.routine) &&
