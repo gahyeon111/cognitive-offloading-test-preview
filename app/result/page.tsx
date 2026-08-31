@@ -40,6 +40,7 @@ export default function ResultPage() {
         <div className="flex items-baseline justify-between border-b border-line pt-12 pb-3 text-[13px] text-muted">
           <span>인지 위탁 검사 · 결과</span>
           <span className="tabular">
+            {data.source === "llm" ? "분석" : "템플릿"} ·{" "}
             {new Date(data.createdAt).toLocaleDateString("ko-KR")}
           </span>
         </div>
@@ -131,6 +132,35 @@ export default function ResultPage() {
                   </article>
                 ))}
               </div>
+            </section>
+
+            <section className="mt-10">
+              <h2 className="font-report text-[22px]">당신이 쓴 글의 실제 분석</h2>
+              <article className="mt-4 border border-line bg-surface p-5">
+                <h3 className="text-[17px] font-semibold">
+                  {report.writingAnalysis.title}
+                </h3>
+                <p className="mt-3 text-[15px] leading-[1.8]">
+                  {report.writingAnalysis.body}
+                </p>
+                <p className="tabular mt-4 border-t border-line pt-3 text-[13px] text-muted">
+                  {taskA.charCount}자 · 서로 다른 단어 {uniqueRatio}%
+                </p>
+              </article>
+            </section>
+
+            <section className="mt-10">
+              <h2 className="font-report text-[22px]">
+                같은 유형이 6개월 뒤 겪는 변화
+              </h2>
+              <article className="mt-4 border border-line bg-surface p-5">
+                <h3 className="text-[17px] font-semibold">
+                  {report.sixMonths.title}
+                </h3>
+                <p className="mt-3 text-[15px] leading-[1.8]">
+                  {report.sixMonths.body}
+                </p>
+              </article>
             </section>
 
             <section className="mt-10">

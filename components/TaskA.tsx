@@ -91,6 +91,10 @@ export default function TaskA({
         <span className="tabular text-muted">{charCount}자</span>
       </div>
 
+      <p className="pb-4 text-[13px] leading-[1.7] text-muted">
+        작성한 글은 분석을 위해서만 전송되며 저장하지 않습니다.
+      </p>
+
       <div className="sticky bottom-0 -mx-5 bg-ground px-5 pb-5">
         <button
           type="button"

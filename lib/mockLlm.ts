@@ -1,7 +1,5 @@
-import {
-  AXIS_LABEL,
-  type Axis,
-} from "./questions";
+import { AXIS_LABEL, type Axis } from "./questions";
+import type { Report, ReportSection, RoutineItem } from "./report";
 import {
   band,
   bottomPercent,
@@ -11,15 +9,8 @@ import {
   type Scores,
   type TaskAMetrics,
   type TaskBMetrics,
+  type TypeKey,
 } from "./scoring";
-
-export type ReportSection = { title: string; body: string };
-export type RoutineItem = { week: string; title: string; body: string };
-export type Report = {
-  headline: string;
-  sections: ReportSection[];
-  routine: RoutineItem[];
-};
 
 /* ------------------------------------------------------------------
  * TODO(real): POST /api/analyze — { scores, taskA, taskB }
@@ -109,26 +100,57 @@ function routineFor(scores: Scores): RoutineItem[] {
   ];
 }
 
-export async function generateReport(
+type WritingBand = "rich" | "mid" | "thin";
+
+function writingBand(taskA: TaskAMetrics): WritingBand {
+  if (taskA.charCount >= 250 && taskA.uniqueTokenRatio >= 0.8) return "rich";
+  if (taskA.charCount < 120 || taskA.uniqueTokenRatio < 0.6) return "thin";
+  return "mid";
+}
+
+const WRITING_BODY: Record<WritingBand, string> = {
+  rich: "3분 동안 쓴 글의 길이와 어휘 폭이 모두 넉넉했습니다. 문장이 도중에 끊기지 않고 이어졌고, 같은 단어를 반복해 자리를 메우는 구간도 거의 없었습니다. 도구 없이 시작해 끝까지 미는 경로가 아직 살아 있다는 뜻입니다. 다만 길이와 다양성은 표면 지표입니다. 근거를 몇 단계까지 내려가 세웠는지는 이 두 숫자로 잡히지 않습니다. 다음에 같은 과제를 할 때는 결론이 아니라 결론을 버티는 이유를 두 겹 더 파고들어 보십시오.",
+  mid: "3분 동안 쓴 글은 중간 정도의 분량과 어휘 폭을 보였습니다. 문장은 이어졌지만 익숙한 표현이 반복되는 구간이 있었고, 초반에 방향을 잡느라 쓴 시간이 눈에 띕니다. 능력이 없어서가 아니라 시동이 무거워진 상태에 가깝습니다. 첫 문장을 직접 쓰는 날이 줄면 정확히 이런 곡선이 나옵니다. 회복은 분량을 늘리는 쪽이 아니라 시작을 직접 하는 쪽에 있습니다.",
+  thin: "3분 동안 쓴 글이 짧았고, 반복되는 표현의 비중이 높았습니다. 시간이 부족했다기보다 쓸 것을 고르는 단계에서 시간이 소진된 흔적입니다. 이것을 글솜씨 문제로 읽지 마십시오. 오래 쓰지 않은 기능이 느려진 것에 가깝습니다. 다만 표현이 단조로워지는 단계까지는 되돌리기 쉽고, 무엇을 쓸지 자체가 떠오르지 않는 단계로 넘어가면 비용이 크게 오릅니다. 지금이 되돌리기 가장 싼 지점입니다.",
+};
+
+const SIX_MONTHS_BODY: Record<TypeKey, string> = {
+  pilot: "지금의 균형은 유지 비용이 듭니다. 6개월 뒤 같은 유형에게서 가장 자주 관찰되는 변화는 검증의 침식입니다. 위탁량은 그대로인데 확인 강도만 조용히 낮아지고, 본인은 여전히 확인하고 있다고 느낍니다. 계기판을 보고 있다는 감각과 실제로 읽고 있는 것은 다릅니다. 확인한 항목을 눈에 보이게 남기지 않으면 6개월 뒤 당신은 승객형에 가까워져 있을 가능성이 높습니다.",
+  passenger: "이 유형이 6개월 뒤 마주치는 것은 대개 한 번의 사고입니다. 통과시킨 결과물 중 하나가 뒤늦게 문제를 일으키고, 그 시점에는 이미 여러 곳에 인용된 뒤입니다. 그때 대부분은 도구를 줄이는 쪽으로 과잉 반응했다가 속도가 떨어져 곧 되돌아옵니다. 진폭만 크고 위치는 그대로입니다. 사고를 기다리지 말고 지금 검증 규칙을 종류로 고정해 두는 편이 훨씬 쌉니다.",
+  mechanic: "6개월 뒤 이 유형이 겪는 문제는 사고력이 아니라 속도입니다. 직접 뜯어보는 습관은 유지되지만 주변이 빨라지면서 상대적 지연이 누적되고, 어느 시점에 한꺼번에 위탁을 늘리는 선택을 합니다. 준비 없이 늘린 위탁은 검증 습관을 데리고 가지 않습니다. 지금 필요한 것은 덜 의심하는 연습이 아니라, 무엇을 맡길지 미리 정해 두는 일입니다. 기준을 갖고 늘린 위탁만이 지금의 강점을 유지시킵니다.",
+  climber: "6개월 뒤 이 유형은 두 갈래로 갈립니다. 한쪽은 지금의 방식으로 계속 가면서 도구를 쓰는 사람들과의 속도 차이를 감수합니다. 다른 한쪽은 어느 시점에 한 번에 넘어가고, 넘어간 뒤 6개월이 지나면 대개 승객형 자리에 있습니다. 갈림길을 결정하는 것은 의지가 아니라 준비입니다. 아직 잃은 것이 없는 지금이 맡길 것과 쥐고 있을 것의 경계를 문장으로 적어 둘 수 있는 유일한 시기입니다.",
+};
+
+/**
+ * LLM 호출이 실패하거나 키가 없을 때 쓰는 목업 리포트.
+ * 실제 리포트는 POST /api/analyze 가 만든다 (app/api/analyze/route.ts).
+ * 이 폴백 덕분에 키 없이도 앱이 끝까지 완주한다 — 지우지 말 것.
+ */
+export function buildFallbackReport(
   scores: Scores,
   taskA: TaskAMetrics,
   taskB: TaskBMetrics,
-): Promise<Report> {
-  // TODO(real): 아래 지연을 fetch("/api/analyze", ...) 로 교체
-  void taskA;
+): Report {
   void taskB;
-  await new Promise((r) => setTimeout(r, 900));
 
-  const sections: ReportSection[] = (
-    ["OFF", "VER", "GEN", "ANX"] as Axis[]
-  ).map((axis) => ({
-    title: SECTION_TITLE[axis],
-    body: SECTION_BODY[axis][band(scores[axis])],
-  }));
+  const sections: ReportSection[] = (["OFF", "VER", "GEN", "ANX"] as Axis[]).map(
+    (axis) => ({
+      title: SECTION_TITLE[axis],
+      body: SECTION_BODY[axis][band(scores[axis])],
+    }),
+  );
 
   return {
     headline: headlineFor(scores),
     sections,
+    writingAnalysis: {
+      title: "당신이 쓴 글",
+      body: WRITING_BODY[writingBand(taskA)],
+    },
+    sixMonths: {
+      title: "6개월 뒤",
+      body: SIX_MONTHS_BODY[decideType(scores)],
+    },
     routine: routineFor(scores),
   };
 }

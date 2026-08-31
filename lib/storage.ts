@@ -1,15 +1,12 @@
-import type { Report } from "./mockLlm";
-import type {
-  Scores,
-  TaskAMetrics,
-  TaskBMetrics,
-  TypeKey,
-} from "./scoring";
+import type { Report, ReportSource } from "./report";
+import type { Scores, TaskAMetrics, TaskBMetrics, TypeKey } from "./scoring";
 
 export const STORAGE_KEY = "cot_result_v1";
+/** 리포트 shape이 바뀌면 올린다. 이전 버전 결과는 무효 처리된다. */
+const SCHEMA_VERSION = 2;
 
 export type StoredResult = {
-  v: 1;
+  v: typeof SCHEMA_VERSION;
   createdAt: number;
   answers: Record<number, number>;
   scores: Scores;
@@ -17,6 +14,7 @@ export type StoredResult = {
   taskB: TaskBMetrics;
   type: TypeKey;
   report: Report;
+  source: ReportSource;
 };
 
 export function saveResult(result: StoredResult) {
@@ -32,7 +30,12 @@ export function loadResult(): StoredResult | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredResult;
-    if (!parsed || parsed.v !== 1 || !parsed.scores || !parsed.report) {
+    if (
+      !parsed ||
+      parsed.v !== SCHEMA_VERSION ||
+      !parsed.scores ||
+      !parsed.report?.writingAnalysis
+    ) {
       return null;
     }
     return parsed;

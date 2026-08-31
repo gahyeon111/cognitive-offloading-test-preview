@@ -6,9 +6,19 @@
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
+cp .env.example .env.local   # OPENAI_API_KEY 채우기
+npm run dev                  # http://localhost:3000
 npm run build
 ```
+
+키가 없어도 앱은 끝까지 돌아간다 — 리포트가 목업 텍스트로 폴백된다.
+
+## 환경변수
+
+| 이름 | 필수 | 기본값 | 설명 |
+|---|---|---|---|
+| `OPENAI_API_KEY` | ○ | — | 서버에서만 읽는다. `NEXT_PUBLIC_` 금지 |
+| `OPENAI_MODEL` | | `gpt-5-nano` | 문장 품질이 아쉬우면 `gpt-5-mini` 등으로. 코드 수정 불필요 |
 
 ## 배포
 
@@ -16,7 +26,8 @@ npm run build
 vercel --prod
 ```
 
-환경변수 없음. 서버 없음. DB 없음.
+Vercel 대시보드 → Settings → Environment Variables 에 위 두 개를 등록한다.
+DB 없음, 로그인 없음. `/api/analyze` 만 서버리스 함수로 뜬다.
 
 ## 구조
 
@@ -27,21 +38,33 @@ vercel --prod
 | `app/result/page.tsx` | `localStorage` 읽어서 결과 렌더. 값 없으면 `/`로 리다이렉트 |
 | `lib/questions.ts` | 설문 20문항 (축: OFF / VER / GEN / ANX) |
 | `lib/scoring.ts` | 과제 측정, 채점식, 백분위, 유형 판정 |
-| `lib/mockLlm.ts` | 리포트 목업. 실제 API 교체 지점 |
+| `app/api/analyze/route.ts` | OpenAI 호출. 실패하면 클라이언트가 목업으로 폴백 |
+| `lib/analyze.ts` | 응답 JSON Schema, 프롬프트, 입력 검증, 응답 매핑 |
+| `lib/reportClient.ts` | `/api/analyze` 호출 + 폴백 |
+| `lib/mockLlm.ts` | 폴백용 목업 리포트 |
 | `lib/storage.ts` | `cot_result_v1` 저장/로드 |
 | `components/Gauge.tsx` | 잔존 게이지 (랜딩·진행바·결과에서 반복) |
 
-## LLM 연동 지점
+## LLM
 
-`lib/mockLlm.ts`의 `generateReport(scores, taskA, taskB)` 하나만 교체하면 된다.
+`POST /api/analyze` 가 리포트 전체를 한 번에 만든다. 응답은 `lib/report.ts`의 `Report` 타입.
 
-```ts
-// TODO(real): POST /api/analyze — { scores, taskA, taskB }
-//   → { headline, sections[], routine[] }
-```
+- OpenAI **Responses API** + `text.format` 의 `json_schema` (strict) 로 shape을 강제한다.
+- 축 4개와 주차 4개는 배열이 아니라 고정 키 객체(`OFF/VER/GEN/ANX`, `week1..4`)로 받는다.
+  strict 모드가 개수를 보장해 주므로 "4개가 왔는지" 검사할 필요가 없다. 배열 변환은 `toReport()`.
+- 채점·백분위·유형 판정은 `lib/scoring.ts`의 결정론적 코드다. LLM은 숫자를 받아 문장만 쓴다.
+- 사용자가 쓴 글은 구분선으로 감싸 데이터로만 취급하도록 지시한다.
 
-응답을 동일한 shape(`Report`)으로 돌려주면 UI 수정 없이 붙는다.
-현재는 축별 점수 구간(높음/보통/낮음)에 따라 12개 문단 중 4개를 골라 반환한다.
+### 폴백
+
+키 없음(503), 호출 실패(502), 타임아웃, shape 불일치 — 어느 경우든 `lib/mockLlm.ts`의
+목업 리포트로 넘어간다. 결과 화면 상단에 `분석`(LLM) / `템플릿`(폴백) 로 출처가 표시된다.
+
+### 첫 실제 호출에서 확인할 것
+
+이 저장소는 실제 OpenAI 호출 없이 스텁으로만 검증했다. 첫 호출에서 400이 나면
+`app/api/analyze/route.ts`의 `client.responses.create` 블록만 보면 된다:
+모델 문자열 → `reasoning.effort` 지원 여부 → `text.format` 형태 순으로 확인.
 
 ## 결제
 

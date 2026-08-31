@@ -8,7 +8,7 @@ import TaskA from "@/components/TaskA";
 import TaskB from "@/components/TaskB";
 import Computing from "@/components/Computing";
 import { PAGE_COUNT, PAGE_SIZE, QUESTIONS } from "@/lib/questions";
-import { generateReport } from "@/lib/mockLlm";
+import { requestReport } from "@/lib/reportClient";
 import { saveResult } from "@/lib/storage";
 import {
   computeScores,
@@ -73,20 +73,22 @@ export default function TestPage() {
 
     let cancelled = false;
     (async () => {
-      const [report] = await Promise.all([
-        generateReport(scores, taskA, taskB),
+      const type = decideType(scores);
+      const [{ report, source }] = await Promise.all([
+        requestReport(scores, type, taskA, taskB),
         new Promise((r) => setTimeout(r, 2200)),
       ]);
       if (cancelled) return;
       saveResult({
-        v: 1,
+        v: 2,
         createdAt: Date.now(),
         answers,
         scores,
         taskA,
         taskB,
-        type: decideType(scores),
+        type,
         report,
+        source,
       });
       router.replace("/result");
     })();
