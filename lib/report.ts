@@ -7,7 +7,6 @@ import type {
 } from "./scoring";
 
 export type ReportSection = { title: string; body: string };
-export type RoutineItem = { week: string; title: string; body: string };
 
 /**
  * 유료 구간 리포트. 결제(unlock) 시점에만 생성한다.
@@ -20,9 +19,13 @@ export type Report = {
   writingAnalysis: ReportSection;
   /** 같은 유형이 6개월 뒤 겪는 변화 */
   sixMonths: ReportSection;
-  /** 4주 회복 루틴 */
-  routine: RoutineItem[];
 };
+
+/*
+ * 취약 시나리오와 4주 루틴은 여기 없다. LLM이 쓰지 않고
+ * content/reports/*.md 의 유형별 고정 원고를 붙인다 (HANDOFF_v2 §15.3).
+ * 이렇게 하면 품질이 안정되고, v1의 루틴 중복 버그가 구조적으로 사라진다.
+ */
 
 /** 리포트가 LLM에서 왔는지 목업 폴백인지 */
 export type ReportSource = "llm" | "fallback";

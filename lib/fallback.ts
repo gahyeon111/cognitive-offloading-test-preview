@@ -1,6 +1,6 @@
 import { type Axis } from "./questions";
 import { band, type Band } from "./norms";
-import type { Report, ReportSection, RoutineItem } from "./report";
+import type { Report, ReportSection } from "./report";
 import {
   decideType,
   type Scores,
@@ -86,31 +86,6 @@ const SIX_MONTHS_BODY: Record<TypeKey, string> = {
     "이 유형의 6개월 뒤는 다른 유형들보다 예측이 어렵습니다. 어느 쪽으로도 뚜렷하게 기울지 않은 상태이기 때문입니다. 다만 방치했을 때의 방향은 하나입니다. 선택하지 않으면 환경이 대신 선택하고, 환경은 대체로 더 쉬운 쪽을 고릅니다. 지금 필요한 것은 강도가 아니라 방향입니다. 다음 한 달 동안 반드시 직접 시작할 일 한 가지와 기꺼이 맡길 일 한 가지를 정하는 것으로 충분합니다.",
 };
 
-function routineFor(): RoutineItem[] {
-  return [
-    {
-      week: "1주차",
-      title: "간격 되찾기",
-      body: "질문이 떠오른 순간과 도구를 여는 순간 사이에 3분을 넣습니다. 그 3분 동안 답을 찾을 필요는 없습니다. 답 대신 질문을 다시 써 보는 것으로 충분합니다. 하루 세 번이면 됩니다.",
-    },
-    {
-      week: "2주차",
-      title: "첫 문장 회수",
-      body: "이번 주 쓰는 모든 글의 첫 문장은 직접 씁니다. 나머지는 평소대로 해도 좋습니다. 첫 문장은 글의 시작이 아니라 그 글에서 무엇을 말할지에 대한 결정이고, 회수할 가치가 가장 큰 한 줄입니다.",
-    },
-    {
-      week: "3주차",
-      title: "확인 규칙 고정",
-      body: "숫자, 인용, 고유명사, 날짜. 이 네 가지는 읽히는 느낌과 무관하게 무조건 원출처를 확인합니다. 감으로 정하던 확인을 종류로 바꾸면 놓치는 쪽의 편향이 사라집니다.",
-    },
-    {
-      week: "4주차",
-      title: "도구 없이 한 편",
-      body: "주말에 한 번, 도구를 켜지 않고 A4 한 장 분량의 글을 끝까지 씁니다. 잘 쓸 필요는 없고 끝내기만 하면 됩니다. 이 한 편이 다음 달의 기준선이 됩니다.",
-    },
-  ];
-}
-
 const AXES: Axis[] = ["OFF", "CAL", "GEN", "ACC", "ANX"];
 
 /**
@@ -136,6 +111,5 @@ export function buildFallbackReport(
       body: WRITING_BODY[writingBand(taskA)],
     },
     sixMonths: { title: "6개월 뒤", body: SIX_MONTHS_BODY[decideType(scores)] },
-    routine: routineFor(),
   };
 }

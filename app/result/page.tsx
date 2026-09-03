@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Gauge from "@/components/Gauge";
 import Toast from "@/components/Toast";
@@ -20,6 +21,7 @@ import {
   type StoredResult,
 } from "@/lib/storage";
 import { TYPES } from "@/lib/scoring";
+import { TYPE_REPORTS } from "@/content/reports/generated";
 
 const AXES: Axis[] = ["OFF", "CAL", "GEN", "ACC", "ANX"];
 
@@ -64,6 +66,7 @@ export default function ResultPage() {
 
   const { scores, taskC, gaps, type, report, straightline, estimated } = data;
   const t = TYPES[type];
+  const doc = TYPE_REPORTS[type];
   const headline = buildHeadline({ scores, type, taskC, gaps });
   const unlocked = !!report;
 
@@ -87,10 +90,19 @@ export default function ResultPage() {
 
         {/* 1. 유형 */}
         <section className="pt-10">
-          <p className="text-[13px] text-muted">
-            당신의 유형 · {t.code}
-          </p>
-          <h1 className="font-report mt-2 text-[32px] leading-[1.35]">{t.name}</h1>
+          <p className="text-[13px] text-muted">당신의 유형 · {t.code}</p>
+          <div className="mt-4 border border-line bg-surface">
+            <Image
+              src={doc.image}
+              alt={`${t.name} 유형 이미지`}
+              width={1254}
+              height={1254}
+              sizes="(max-width: 560px) 100vw, 560px"
+              priority
+              className="h-auto w-full"
+            />
+          </div>
+          <h1 className="font-report mt-5 text-[32px] leading-[1.35]">{t.name}</h1>
           <p className="mt-2 text-[17px] leading-[1.7]">{t.line}</p>
         </section>
 
@@ -240,11 +252,37 @@ export default function ResultPage() {
               </article>
             </section>
 
-            {/* 11 4주 루틴 */}
+            {/* 09 취약 시나리오 — 유형별 고정 원고 */}
+            <section className="mt-10">
+              <h2 className="font-report text-[22px]">당신이 무너지는 상황</h2>
+              <p className="mt-2 text-[13px] text-muted">
+                {t.name} 유형에게 반복해서 나타나는 세 장면입니다.
+              </p>
+              <ol className="mt-4 space-y-3">
+                {doc.scenarios.map((sc, i) => (
+                  <li key={sc.title} className="border border-line bg-surface p-5">
+                    <div className="flex items-baseline gap-2.5">
+                      <span className="tabular text-[13px] text-muted">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <h3 className="text-[17px] font-semibold">{sc.title}</h3>
+                    </div>
+                    <p className="mt-3 text-[15px] leading-[1.8]">{sc.body}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            {/* 11 4주 루틴 — 유형별 고정 원고 */}
             <section className="mt-10">
               <h2 className="font-report text-[22px]">4주 회복 루틴</h2>
+              <p className="mt-2 text-[13px] text-muted">
+                {doc.routineDirection === "reduce"
+                  ? "맡긴 것을 되찾는 방향입니다."
+                  : "쓰지 않던 것을 선택적으로 쓰는 방향입니다."}
+              </p>
               <ol className="mt-4 divide-y divide-line border-y border-line">
-                {report.routine.map((r) => (
+                {doc.routine.map((r) => (
                   <li key={r.week} className="py-4">
                     <div className="flex gap-3">
                       <span className="tabular w-12 shrink-0 text-[13px] text-muted">
@@ -254,6 +292,9 @@ export default function ResultPage() {
                         <p className="text-[15px] font-semibold">{r.title}</p>
                         <p className="mt-1.5 text-[15px] leading-[1.8] text-muted">
                           {r.body}
+                        </p>
+                        <p className="mt-2.5 border-l-2 border-mine pl-3 text-[15px] leading-[1.7]">
+                          {r.action}
                         </p>
                       </div>
                     </div>

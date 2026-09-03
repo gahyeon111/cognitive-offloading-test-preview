@@ -48,6 +48,10 @@ DB 없음, 로그인 없음. `/api/analyze` 만 서버리스 함수로 뜬다.
 | `lib/headline.ts` | 결정적 한 줄. **LLM 미사용** |
 | `lib/analyze.ts` | 응답 스키마 · 프롬프트 · 입력 검증 · 응답 매핑 |
 | `lib/fallback.ts` | LLM 실패 시 폴백 원고 |
+| `content/reports/*.md` | 유형별 원고 8편 (취약 시나리오 3 + 4주 루틴 4) |
+| `content/reports/generated.ts` | 자동 생성. 직접 고치지 말 것 |
+| `scripts/build-reports.mjs` | .md → .ts 변환. `npm run build` 가 자동 실행 |
+| `public/types/*.png` | 유형 캐릭터 이미지 8장 |
 | `lib/shareCard.ts` | 결과 이미지를 캔버스에 직접 그린다 |
 | `components/viz/GapChart.tsx` | 괴리 차트 ★ 시그니처. 손으로 쓴 SVG |
 | `components/viz/IoedDrop.tsx` | IOED 낙하 |
@@ -69,6 +73,10 @@ DB 없음, 로그인 없음. `/api/analyze` 만 서버리스 함수로 뜬다.
 **무료 사용자 1인당 LLM 비용은 0원이다.** 무료 구간(유형·5축 게이지·결정적 한 줄·IOED
 카드·방법론)은 전부 결정론적 코드가 만든다. `/api/analyze`는 결제(unlock) 시점에 정확히
 한 번만 호출되고, 결과는 localStorage에 캐시돼 재진입 시 재호출하지 않는다.
+
+취약 시나리오와 4주 루틴도 LLM이 쓰지 않는다. `content/reports/*.md` 의 고정 원고를
+붙인다. 처방이 유형별로 반대여야 하기 때문이다 — 위탁 高는 줄이는 처방, 低는 늘리는
+처방. 등반가에게 "더 열심히"는 무의미하다.
 
 과제 C의 참조답변에도 LLM을 붙이지 않는다. 비용 때문이 아니라 측정 때문이다 —
 사용자마다 다른 답변을 주면 표현 겹침률을 비교할 기준이 사라진다.
@@ -98,3 +106,16 @@ DB 없음, 로그인 없음. `/api/analyze` 만 서버리스 함수로 뜬다.
 
 PoC라 결제는 목업 모달이다. 모달 하단의 `개발용으로 열어보기`를 누르면
 유료 구간(축별 해석 4편 + 4주 루틴)이 그대로 열린다. 배포본에도 남겨 두었다.
+
+## 원고 수정
+
+`content/reports/*.md` 를 고치고 `npm run reports` 를 돌린다. `npm run build` 는
+prebuild 로 자동 실행하므로 따로 부를 필요는 없다.
+
+빌드는 다음이 어긋나면 멈춘다:
+- 원고가 8편이 아니거나 유형이 중복될 때
+- 시나리오가 3편, 루틴이 4주가 아닐 때
+- 루틴에 `action` 이 빠졌을 때
+- `code` 가 유형 코드와 다를 때
+- **원고의 `name` / `line` 이 `lib/scoring.ts` 의 값과 다를 때** — 유형명이 두 곳에
+  있으면 반드시 갈리므로 빌드에서 잡는다

@@ -4,11 +4,11 @@ import {
   MAX_TASK_B_CHARS,
   MAX_TASK_C_CHARS,
   type Report,
-  type RoutineItem,
 } from "./report";
 import { BAND_LABEL, band, rankLabel } from "./norms";
 import { TYPES, type TypeKey } from "./scoring";
 import { TASK_C_ITEMS, type TaskCItemKey } from "@/content/tasks";
+import { TYPE_REPORTS } from "@/content/reports/generated";
 
 export const AXES: Axis[] = ["OFF", "CAL", "GEN", "ACC", "ANX"];
 
@@ -32,7 +32,7 @@ const BODY_HINT =
 export const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["sections", "writingAnalysis", "sixMonths", "routine"],
+  required: ["sections", "writingAnalysis", "sixMonths"],
   properties: {
     sections: {
       type: "object",
@@ -50,17 +50,6 @@ export const SCHEMA = {
       "6개월 뒤 변화의 제목",
       "현 패턴을 유지했을 때의 6개월 뒤 시나리오. 300자 내외. 예측이 아니라 시나리오로 쓴다.",
     ),
-    routine: {
-      type: "object",
-      additionalProperties: false,
-      required: ["week1", "week2", "week3", "week4"],
-      properties: Object.fromEntries(
-        [1, 2, 3, 4].map((w) => [
-          `week${w}`,
-          section(`${w}주차 과제 제목 (12자 이내)`, "150자 내외의 실행 지시."),
-        ]),
-      ),
-    },
   },
 } as const;
 
@@ -88,6 +77,22 @@ ${AXES.map((a) => `- ${AXIS_LABEL[a]}(${a}): ${AXIS_DEF[a]}`).join("\n")}
 - "AI 시대에는" "우리 모두" 같은 일반론
 - 입력에 없는 사실 창작
 - 정보가 부족하다는 언급. 부족하면 짧게 쓰고 넘어간다.`;
+
+/**
+ * 유형별 톤 가이드 (HANDOFF_v2 §13.3).
+ * 같은 템플릿에 숫자만 바꾸면 결제자가 알아챈다.
+ */
+const TONE_GUIDE: Record<string, string> = {
+  plain: "담백하게 쓴다. 칭찬하지 않는다. 잘하고 있다는 말을 넣지 않는다.",
+  sharp:
+    "날을 세운다. 읽기 불편해도 된다. 다만 인신공격은 하지 않는다 — 사람이 아니라 패턴을 지적한다.",
+  "cost-aware":
+    "먼저 인정한다. 이 사람이 유지해 온 것을 정확히 짚은 뒤에 그 비용을 지적한다. 순서를 바꾸지 않는다.",
+  "role-based":
+    "결핍을 결함으로 쓰지 않는다. 역할로 쓴다. 못하는 사람이 아니라 다른 자리에 서 있는 사람으로 서술한다.",
+  acknowledged:
+    "능력은 인정하고 시작한다. 그다음 그 능력이 가리고 있는 것을 짚는다.",
+};
 
 /* ── 입력 검증 ────────────────────────────────────────── */
 
@@ -165,6 +170,8 @@ export function buildInput(p: Parsed) {
   }).join("\n");
 
   const t = TYPES[p.type];
+  const doc = TYPE_REPORTS[p.type];
+  const tone = TONE_GUIDE[doc.tone] ?? TONE_GUIDE.plain;
   const c = p.taskC;
   const cLabel = c
     ? (TASK_C_ITEMS.find((i) => i.key === c.item)?.label ?? c.item)
@@ -188,6 +195,7 @@ ${rows}
 
 [유형]
 ${t.name} (${t.code}) — ${t.line}
+이 유형에 쓰는 톤: ${tone}
 
 [과제 A · AI 없이 180초 글쓰기]
 지시문: "지난주에 내린 결정 하나를 고르고, 왜 그렇게 결정했는지 아무 도구 없이 설명하세요."
@@ -217,18 +225,10 @@ export function toReport(raw: {
   sections: Record<Axis, { title: string; body: string }>;
   writingAnalysis: { title: string; body: string };
   sixMonths: { title: string; body: string };
-  routine: Record<string, { title: string; body: string }>;
 }): Report {
-  const routine: RoutineItem[] = [1, 2, 3, 4].map((w) => ({
-    week: `${w}주차`,
-    title: raw.routine[`week${w}`].title,
-    body: raw.routine[`week${w}`].body,
-  }));
-
   return {
     sections: AXES.map((a) => raw.sections[a]),
     writingAnalysis: raw.writingAnalysis,
     sixMonths: raw.sixMonths,
-    routine,
   };
 }

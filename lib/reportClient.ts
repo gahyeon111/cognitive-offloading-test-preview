@@ -65,8 +65,6 @@ function isUsable(r: Report | undefined): r is Report {
     Array.isArray(r.sections) &&
     r.sections.length === 5 &&
     r.sections.every((s) => !!s?.body) &&
-    Array.isArray(r.routine) &&
-    r.routine.length === 4 &&
     !!r.writingAnalysis?.body &&
     !!r.sixMonths?.body
   );

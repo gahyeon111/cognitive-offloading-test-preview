@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "reports": "node scripts/build-reports.mjs",
+    "prebuild": "node scripts/build-reports.mjs"
   },
   "dependencies": {
     "next": "^15.5.24",
