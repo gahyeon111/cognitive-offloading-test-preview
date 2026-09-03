@@ -6,6 +6,7 @@ import Gauge from "@/components/Gauge";
 import Toast from "@/components/Toast";
 import GapChart from "@/components/viz/GapChart";
 import IoedDrop from "@/components/viz/IoedDrop";
+import TextHighlight from "@/components/viz/TextHighlight";
 import ResultActions from "@/components/ResultActions";
 import { DISCLAIMER, METHODOLOGY, PAYWALL, REFERENCES } from "@/content/copy";
 import { AXIS_LABEL, type Axis } from "@/lib/questions";
@@ -216,11 +217,11 @@ export default function ResultPage() {
                 <p className="mt-3 text-[15px] leading-[1.8]">
                   {report.writingAnalysis.body}
                 </p>
-                <p className="tabular mt-4 border-t border-line pt-3 text-[13px] text-muted">
-                  {data.taskA.charCount}자 · 100자당 인과 표현{" "}
-                  {data.taskA.causalDensity.toFixed(1)}회
-                </p>
               </article>
+
+              <div className="mt-3">
+                <TextHighlight text={data.taskA.text} />
+              </div>
             </section>
 
             {/* 10 6개월 궤적 */}

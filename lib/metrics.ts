@@ -91,3 +91,40 @@ export type TypingMetrics = {
   pauseCount: number;
   deleteRatio: number;
 };
+
+export type Span = { start: number; end: number };
+
+/** 공백으로 나눈 어절의 위치 */
+function tokenSpans(text: string): (Span & { token: string })[] {
+  const out: (Span & { token: string })[] = [];
+  const re = /\S+/g;
+  for (const m of text.matchAll(re)) {
+    if (m.index === undefined) continue;
+    out.push({ token: m[0], start: m.index, end: m.index + m[0].length });
+  }
+  return out;
+}
+
+/**
+ * 두 번 이상 나온 어절의 위치 — 모듈 4 하이라이트용.
+ * 조사가 붙으면 다른 어절로 세므로 완전히 같은 형태만 반복으로 본다.
+ */
+export function repeatedTokenSpans(text: string): Span[] {
+  const spans = tokenSpans(text).filter((s) => s.token.length >= 2);
+  const counts = new Map<string, number>();
+  for (const s of spans) counts.set(s.token, (counts.get(s.token) ?? 0) + 1);
+  return spans
+    .filter((s) => (counts.get(s.token) ?? 0) >= 2)
+    .map(({ start, end }) => ({ start, end }));
+}
+
+/** 문장 단위로 자른 위치. 문장 부호가 없으면 전체가 한 문장이다. */
+export function sentenceSpans(text: string): Span[] {
+  const out: Span[] = [];
+  const re = /[^.!?]+[.!?]*/g;
+  for (const m of text.matchAll(re)) {
+    if (m.index === undefined || !m[0].trim()) continue;
+    out.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return out.length ? out : text.trim() ? [{ start: 0, end: text.length }] : [];
+}
